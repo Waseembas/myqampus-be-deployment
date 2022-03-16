@@ -3,7 +3,14 @@ def call(Map pipelineParams) {
     agent {label 'master'}
 
     environment {
-      GIT_BASE  = 'https://gitlab.com/qampus3/be/qampus-be/-/commit'
+      BUILD_START_SLACK_BAR_COLOR = '#FFFF00'
+      APP_RELEASE_NAME = 'qampus'
+      DOCKER_NETWORK_ARG = "--network=bridge -v /var/jenkins_home/workspace/qumpas-be:/root/qampus-be -v /var/run/docker.sock:/var/run/docker.sock"
+      DOCKER_ELIXIR_IMAGE = "elixir:1.13.1"
+      GIT_REPO_URL = "${pipelineParams.GIT_REPO_URL}"
+      GIT_COMMIT_BASE_URL = "${pipelineParams.GIT_COMMIT_BASE_URL}"
+      SERVER_IP = "${pipelineParams.SERVER_IP}"
+      SITE = "${pipelineParams.SITE}"
     }
 
     stages {
@@ -11,7 +18,7 @@ def call(Map pipelineParams) {
         steps {
           sh "printenv | sort"
           sh "rm -rf * && rm -rf .git"
-          git branch: "${params.branch}", url:  "git@gitlab.com:qampus3/be/qampus-be.git"
+          git branch: "${env.GIT_BRANCH}", url:  "${env.GIT_REPO_URL}"
         }
       }
 
@@ -26,7 +33,7 @@ def call(Map pipelineParams) {
             echo "GIT_COMMIT_MSG: ${env.GIT_COMMIT_MSG}"
             echo "GIT_COMMIT_AUTHOR: ${env.GIT_COMMIT_AUTHOR}"
             echo "BUILD_URL: ${env.BUILD_URL}"
-            slackSend (color: '#FFFF00', message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_BASE}/${env.GIT_COMMIT_HASH}|${env.GIT_COMMIT_HASH}>)  ```${env.GIT_COMMIT_MSG}``` » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » Started by user `${env.GIT_COMMIT_AUTHOR}`")
+            slackSend (color: "${env.BUILD_START_SLACK_BAR_COLOR}", message: "${env.JOB_NAME} » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » COMMIT » `${env.GIT_COMMIT_AUTHOR}` » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_COMMIT_HASH}|${env.GIT_COMMIT_HASH}>)  ```${env.GIT_COMMIT_MSG}```")
           }
         }
       }
@@ -34,7 +41,7 @@ def call(Map pipelineParams) {
       stage ("CREATE BUILD") {
         steps {
           script {
-            docker.image('elixir:1.13.1').inside("--network=bridge -v /var/jenkins_home/workspace/qumpas-be:/root/qampus-be -v /var/run/docker.sock:/var/run/docker.sock") {
+            docker.image("${env.DOCKER_ELIXIR_IMAGE}").inside("${env.DOCKER_NETWORK_ARG}") {
               sh "hostname"
 
 
@@ -59,7 +66,7 @@ def call(Map pipelineParams) {
                 mix do clean, compile --force
 
                 echo "Generating release..."
-                MIX_ENV=prod RELEASE_VERSION=$BUILD_NUMBER mix release qampus
+                MIX_ENV=prod RELEASE_VERSION=$BUILD_NUMBER mix release ${env.APP_RELEASE_NAME}
 
                 echo "Release generated!"
 
@@ -78,12 +85,12 @@ def call(Map pipelineParams) {
         steps {
           sshagent(['dev-MyQampus-server']) {
             sh "ls -altr"
-            //sh "ssh -vvv -o StrictHostKeyChecking=no -T ubuntu@${pipelineParams.SERVER_IP}"
+            //sh "ssh -vvv -o StrictHostKeyChecking=no -T ubuntu@${env.SERVER_IP}"
 
-            sh 'ssh -o StrictHostKeyChecking=no -l ubuntu ${pipelineParams.SERVER_IP} /home/ubuntu/sites/${pipelineParams.SITE}/builds/bin/server stop &>/dev/null || true'
-            sh 'scp  builds/server-$BUILD_NUMBER.tar.gz ubuntu@${pipelineParams.SERVER_IP}:/tmp'
-            sh 'ssh -o StrictHostKeyChecking=no -l ubuntu ${pipelineParams.SERVER_IP} tar -xvzf /tmp/server-$BUILD_NUMBER.tar.gz --directory /home/ubuntu/sites/${pipelineParams.SITE}/builds'
-            sh 'ssh -o StrictHostKeyChecking=no -l ubuntu ${pipelineParams.SERVER_IP} bash /home/ubuntu/sites/${pipelineParams.SITE}/deployment/be_start.sh'
+            sh 'ssh -o StrictHostKeyChecking=no -l ubuntu ${env.SERVER_IP} /home/ubuntu/sites/${env.SITE}/builds/bin/${env.APP_RELEASE_NAME} stop &>/dev/null || true'
+            sh 'scp  builds/${env.APP_RELEASE_NAME}-$BUILD_NUMBER.tar.gz ubuntu@${env.SERVER_IP}:/tmp'
+            sh 'ssh -o StrictHostKeyChecking=no -l ubuntu ${env.SERVER_IP} tar -xvzf /tmp/${env.APP_RELEASE_NAME}-$BUILD_NUMBER.tar.gz --directory /home/ubuntu/sites/${env.SITE}/builds'
+            sh 'ssh -o StrictHostKeyChecking=no -l ubuntu ${env.SERVER_IP} bash /home/ubuntu/sites/${env.SITE}/deployment/be_start.sh'
           }
         }
       }
@@ -96,8 +103,8 @@ def call(Map pipelineParams) {
             // TODO: Below command doesnt makes sense
             sh '''
             #!/bin/bash
-            echo > /dev/udp/${pipelineParams.SERVER_IP}/6001 && echo "Port is open"
-            #nc -w 30 -v ${pipelineParams.SERVER_IP} 6001 </dev/null; echo $?
+            echo > /dev/udp/${env.SERVER_IP}/6001 && echo "Port is open"
+            #nc -w 30 -v ${env.SERVER_IP} 6001 </dev/null; echo $?
             '''
           }
         }
@@ -107,16 +114,16 @@ def call(Map pipelineParams) {
       always {
         script {
           if ( currentBuild.currentResult == "SUCCESS" ) {
-            slackSend color: "good", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_BASE}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish sucessfull"
+            slackSend color: "good", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish sucessfull"
           }
           else if( currentBuild.currentResult == "FAILURE" ) {
-            slackSend color: "danger", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_BASE}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish failure"
+            slackSend color: "danger", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish failure"
           }
           else if( currentBuild.currentResult == "UNSTABLE" ) {
-            slackSend color: "danger", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_BASE}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish unstable"
+            slackSend color: "danger", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish unstable"
           }
           else {
-            slackSend color: "danger", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_BASE}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases  » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish failure"
+            slackSend color: "danger", message: "${env.JOB_NAME} » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_LAST_COMMIT}|${env.GIT_LAST_COMMIT}>)  configure context test cases  » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » finish failure"
           }
 
           cleanWs()
