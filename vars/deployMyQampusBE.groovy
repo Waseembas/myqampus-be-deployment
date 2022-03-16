@@ -8,6 +8,7 @@ def call(Map pipelineParams) {
       DOCKER_NETWORK_ARG = "--network=bridge -v /var/jenkins_home/workspace/qumpas-be:/root/qampus-be -v /var/run/docker.sock:/var/run/docker.sock"
       DOCKER_ELIXIR_IMAGE = "elixir:1.13.1"
       GIT_REPO_URL = "${pipelineParams.GIT_REPO_URL}"
+      GIT_BRANCH = "${pipelineParams.GIT_BRANCH}"
       GIT_COMMIT_BASE_URL = "${pipelineParams.GIT_COMMIT_BASE_URL}"
       SERVER_IP = "${pipelineParams.SERVER_IP}"
       SITE = "${pipelineParams.SITE}"
@@ -83,7 +84,7 @@ def call(Map pipelineParams) {
 
       stage('DEPLOY') {
         steps {
-          sshagent(['dev-MyQampus-server']) {
+          sshagent(['ssh-deploy-server']) {
             sh "ls -altr"
             //sh "ssh -vvv -o StrictHostKeyChecking=no -T ubuntu@${env.SERVER_IP}"
 
