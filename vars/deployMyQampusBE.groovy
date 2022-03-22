@@ -67,7 +67,7 @@ def call(Map pipelineParams) {
                 mix do clean, compile --force
 
                 echo "Generating release..."
-                MIX_ENV=prod RELEASE_VERSION=$BUILD_NUMBER mix release ${env.APP_RELEASE_NAME}
+                MIX_ENV=prod RELEASE_VERSION=$BUILD_NUMBER mix release $APP_RELEASE_NAME
 
                 echo "Release generated!"
 
