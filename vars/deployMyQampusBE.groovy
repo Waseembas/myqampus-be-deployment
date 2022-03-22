@@ -34,7 +34,7 @@ def call(Map pipelineParams) {
             echo "GIT_COMMIT_MSG: ${env.GIT_COMMIT_MSG}"
             echo "GIT_COMMIT_AUTHOR: ${env.GIT_COMMIT_AUTHOR}"
             echo "BUILD_URL: ${env.BUILD_URL}"
-            slackSend (color: "${env.BUILD_START_SLACK_BAR_COLOR}", message: "${env.JOB_NAME} » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » COMMIT » `${env.GIT_COMMIT_AUTHOR}` » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_COMMIT_HASH}|${env.GIT_COMMIT_HASH}>)  ```${env.GIT_COMMIT_MSG}```")
+            //slackSend (color: "${env.BUILD_START_SLACK_BAR_COLOR}", message: "${env.JOB_NAME} » build (<${env.BUILD_URL}|${env.BUILD_NUMBER}>) » COMMIT » `${env.GIT_COMMIT_AUTHOR}` » ${env.branch} (<${env.GIT_COMMIT_BASE_URL}/${env.GIT_COMMIT_HASH}|${env.GIT_COMMIT_HASH}>)  ```${env.GIT_COMMIT_MSG}```")
           }
         }
       }
